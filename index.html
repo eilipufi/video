@@ -178,11 +178,20 @@
                 setFit('contain');
             }, [video.url]);
 
+            // --- 核心修改：切换视频时强制重置并播放 ---
             useEffect(() => {
-                if (isActive && video.url) videoRef.current?.play().catch(e => {});
-                else { 
-                    videoRef.current?.pause(); 
+                if (isActive && video.url) {
+                    if (videoRef.current) {
+                        videoRef.current.currentTime = 0; // 强制重置到开头
+                        videoRef.current.play().catch(e => {});
+                    }
+                } else { 
+                    if (videoRef.current) {
+                        videoRef.current.pause(); 
+                        videoRef.current.currentTime = 0; // 切走时也重置，双重保险
+                    }
                     setIsPlaying(false);
+                    setCurrentTime(0); // 重置 UI 进度条
                 }
             }, [isActive]);
 
