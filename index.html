@@ -55,6 +55,28 @@
         .animate-pulse-fast {
             animation: pulse-fast 0.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
+        
+        /* 进度条样式优化 */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 12px;
+            width: 12px;
+            border-radius: 50%;
+            background: white;
+            margin-top: -4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.3);
+            border-radius: 2px;
+        }
     </style>
 </head>
 <body>
@@ -70,17 +92,16 @@
         );
 
         const Icons = {
-            Heart: (p) => <Icon {...p} path={<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" fill={p.filled ? "#ef4444" : "none"} stroke={p.filled ? "none" : "currentColor"}/>} />,
             Plus: (p) => <Icon {...p} path={<><path d="M12 5v14"/><path d="M5 12h14"/></>} />,
             Search: (p) => <Icon {...p} path={<><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></>} />,
             Play: (p) => <Icon {...p} path={<polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/>} />,
-            Forward: (p) => <Icon {...p} path={<><polygon points="13 19 22 12 13 5 13 19" fill="currentColor"/><polygon points="2 19 11 12 2 5 2 19" fill="currentColor"/></>} />,
-            Rewind: (p) => <Icon {...p} path={<><polygon points="11 19 2 12 11 5 11 19" fill="currentColor"/><polygon points="22 19 13 12 22 5 22 19" fill="currentColor"/></>} />,
             Rotate: (p) => <Icon {...p} path={<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>} />,
             Maximize: (p) => <Icon {...p} path={<><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" x2="14" y1="3" y2="10"/><line x1="3" x2="10" y1="21" y2="14"/></>} />,
             Volume: (p) => <Icon {...p} path={<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>} />,
             VolumeX: (p) => <Icon {...p} path={<><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" x2="17" y1="9" y2="15"/><line x1="17" x2="23" y1="9" y2="15"/></>} />,
-            Close: (p) => <Icon {...p} path={<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>} />
+            Close: (p) => <Icon {...p} path={<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>} />,
+            FastForward: (p) => <Icon {...p} path={<><polygon points="13 19 22 12 13 5 13 19" fill="currentColor"/><polygon points="2 19 11 12 2 5 2 19" fill="currentColor"/></>} />,
+            Rewind: (p) => <Icon {...p} path={<><polygon points="11 19 2 12 11 5 11 19" fill="currentColor"/><polygon points="22 19 13 12 22 5 22 19" fill="currentColor"/></>} />
         };
 
         const parsePlaylist = (text) => {
@@ -127,12 +148,11 @@
             const [fit, setFit] = useState('contain');
             const [currentTime, setCurrentTime] = useState(0);
             const [duration, setDuration] = useState(0);
-            const [isLiked, setIsLiked] = useState(false);
             
-            const longPressTimerRef = useRef(null);
-            const rewindIntervalRef = useRef(null);
-            const touchStartRef = useRef({ x: 0, y: 0, time: 0 });
-            const [pressAction, setPressAction] = useState(null); 
+            // --- 手势与进度控制状态 ---
+            const touchStartRef = useRef({ x: 0, y: 0, time: 0, startCurrentTime: 0 });
+            const [isSeeking, setIsSeeking] = useState(false);
+            const [seekTime, setSeekTime] = useState(0);
 
             useEffect(() => {
                 if (videoRef.current) {
@@ -156,7 +176,6 @@
                 }
                 setRotation(0);
                 setFit('contain');
-                setPressAction(null);
             }, [video.url]);
 
             useEffect(() => {
@@ -164,58 +183,51 @@
                 else { 
                     videoRef.current?.pause(); 
                     setIsPlaying(false);
-                    setPressAction(null);
-                    if(rewindIntervalRef.current) clearInterval(rewindIntervalRef.current);
                 }
             }, [isActive]);
 
+            // --- 核心：左右滑动调节进度逻辑 ---
             const handleTouchStart = (e) => {
                 const touch = e.touches[0];
-                const width = e.currentTarget.clientWidth;
-                const x = touch.clientX;
-                const y = touch.clientY;
-                
-                touchStartRef.current = { x, y, time: Date.now() };
-                const isRight = x > width / 2;
-
-                longPressTimerRef.current = setTimeout(() => {
-                    if (isRight) {
-                        if (videoRef.current) videoRef.current.playbackRate = 2.0;
-                        setPressAction('forward');
-                    } else {
-                        if (videoRef.current) {
-                            videoRef.current.pause();
-                            rewindIntervalRef.current = setInterval(() => {
-                                videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 0.3);
-                            }, 50);
-                        }
-                        setPressAction('rewind');
-                    }
-                }, 400); 
+                touchStartRef.current = { 
+                    x: touch.clientX, 
+                    y: touch.clientY, 
+                    time: Date.now(),
+                    startCurrentTime: videoRef.current ? videoRef.current.currentTime : 0
+                };
+                // 不在这里设置 seeking，防止误触点击
             };
 
             const handleTouchMove = (e) => {
                 const touch = e.touches[0];
-                const deltaX = Math.abs(touch.clientX - touchStartRef.current.x);
-                const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
-                if (deltaX > 10 || deltaY > 10) { clearLongPress(); }
+                const deltaX = touch.clientX - touchStartRef.current.x;
+                const deltaY = touch.clientY - touchStartRef.current.y;
+
+                // 如果横向移动明显大于纵向移动，且移动距离超过 20px，判定为拖动进度
+                if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 20) {
+                    if (!isSeeking) setIsSeeking(true);
+                    
+                    // 计算新时间：每 5px 移动 1 秒 (可调整灵敏度)
+                    const seekDelta = deltaX / 5; 
+                    const newTime = Math.max(0, Math.min(duration, touchStartRef.current.startCurrentTime + seekDelta));
+                    setSeekTime(newTime);
+                }
             };
 
             const handleTouchEnd = () => {
-                clearLongPress();
-                const holdTime = Date.now() - touchStartRef.current.time;
-                if (!pressAction && holdTime < 400) { handleTap(); }
-            };
-
-            const clearLongPress = () => {
-                if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-                if (rewindIntervalRef.current) clearInterval(rewindIntervalRef.current);
-                
-                if (videoRef.current) {
-                    videoRef.current.playbackRate = 1.0; 
-                    if (pressAction === 'rewind') videoRef.current.play().catch(()=>{}); 
+                if (isSeeking) {
+                    // 应用拖动后的时间
+                    if (videoRef.current) {
+                        videoRef.current.currentTime = seekTime;
+                    }
+                    setIsSeeking(false);
+                } else {
+                    // 如果不是 seeking，且时间极短，视为点击播放/暂停
+                    const holdTime = Date.now() - touchStartRef.current.time;
+                    if (holdTime < 200) {
+                        handleTap();
+                    }
                 }
-                setPressAction(null);
             };
 
             const handleTap = () => {
@@ -224,6 +236,9 @@
             };
 
             const videoStyle = { width: '100%', height: '100%', objectFit: fit, transform: `rotate(${rotation}deg)`, transition: 'transform 0.3s ease', pointerEvents: 'none' };
+
+            // 格式化当前显示时间 (正常播放或拖动时)
+            const displayTime = isSeeking ? seekTime : currentTime;
 
             return (
                 <div className="relative w-full h-full snap-start bg-black flex-shrink-0 border-b border-gray-800 overflow-hidden">
@@ -235,53 +250,68 @@
                             webkit-playsinline="true"
                             x5-playsinline="true"
                             x5-video-player-type="h5-page"
-                            onTimeUpdate={(e) => { setCurrentTime(e.target.currentTime); setDuration(e.target.duration || 0); }}
+                            onTimeUpdate={(e) => { 
+                                if (!isSeeking) {
+                                    setCurrentTime(e.target.currentTime); 
+                                    setDuration(e.target.duration || 0); 
+                                }
+                            }}
                             onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)}
                         />
+                        {/* 交互层 */}
                         <div className="absolute inset-0 z-10" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onTouchMove={handleTouchMove} onTouchCancel={handleTouchEnd}></div>
                         
-                        {pressAction === 'forward' && (
-                            <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none bg-black/20">
-                                <div className="flex flex-col items-center bg-black/60 p-4 rounded-2xl backdrop-blur-md animate-pulse-fast">
-                                    <Icons.Forward size={48} className="text-white" /><span className="text-white font-bold text-lg mt-2">2X 速</span>
+                        {/* --- 拖动进度的中央提示 --- */}
+                        {isSeeking && (
+                            <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none bg-black/40 backdrop-blur-sm">
+                                <div className="flex flex-col items-center">
+                                    <div className="text-4xl font-bold text-white mb-2 font-mono">
+                                        {formatTime(seekTime)} 
+                                        <span className="text-lg text-white/70 ml-2">/ {formatTime(duration)}</span>
+                                    </div>
+                                    <div className="text-white/80 text-sm">
+                                        {seekTime > touchStartRef.current.startCurrentTime ? "快进 >>" : "<< 后退"}
+                                    </div>
                                 </div>
                             </div>
                         )}
-                        {pressAction === 'rewind' && (
-                            <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none bg-black/20">
-                                <div className="flex flex-col items-center bg-black/60 p-4 rounded-2xl backdrop-blur-md animate-pulse-fast">
-                                    <Icons.Rewind size={48} className="text-white" /><span className="text-white font-bold text-lg mt-2">后退</span>
-                                </div>
-                            </div>
-                        )}
                     </div>
 
-                    {!isPlaying && !isMuted && !pressAction && video.url && <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20"><Icons.Play size={60} className="text-white/40" /></div>}
+                    {!isPlaying && !isMuted && !isSeeking && video.url && <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20"><Icons.Play size={60} className="text-white/40" /></div>}
 
-                    {/* --- 布局优化重点：大幅抬高底部控件 --- */}
-                    
-                    {/* 1. 进度条：从 bottom-6 抬高到 bottom-20 (约80px)，再加上 safe-area */}
-                    <div className="absolute left-0 right-0 z-40 px-4 py-2 bg-gradient-to-t from-black/90 to-transparent flex gap-3 items-center" 
-                         style={{bottom: 'calc(5rem + env(safe-area-inset-bottom))'}}>
-                        <input type="range" min="0" max={duration || 100} value={currentTime} onChange={(e) => videoRef.current.currentTime = e.target.value} className="flex-1 h-1 bg-white/30 rounded-lg appearance-none outline-none z-50" style={{accentColor: 'white'}} />
-                        <span className="text-[10px] text-white font-mono">{formatTime(currentTime)}</span>
+                    {/* --- 顶部进度条 (位于屏幕最上方) --- */}
+                    {/* 使用 padding-top 避开 safe-area 和浏览器边框，增加 z-index 防止被遮挡 */}
+                    <div className="absolute top-0 left-0 right-0 z-50 px-4 pt-16 pb-4 bg-gradient-to-b from-black/80 to-transparent flex gap-3 items-center pointer-events-none">
+                        <span className="text-[10px] text-white font-mono drop-shadow-md">{formatTime(displayTime)}</span>
+                        {/* 进度条轨道 */}
+                        <div className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden relative">
+                            {/* 播放进度 */}
+                            <div className="absolute top-0 left-0 h-full bg-white transition-all duration-100" style={{width: `${(displayTime / (duration || 1)) * 100}%`}}></div>
+                        </div>
+                        <span className="text-[10px] text-white font-mono drop-shadow-md">{formatTime(duration)}</span>
                     </div>
 
-                    {/* 2. 侧边栏：从 bottom-28 抬高到 bottom-40 (约160px) */}
-                    <div className="absolute right-2 flex flex-col items-center gap-5 z-20"
-                         style={{bottom: 'calc(10rem + env(safe-area-inset-bottom))'}}>
-                        <div className="w-12 h-12 rounded-full border border-white/50 overflow-hidden bg-gray-700"><img src={video.avatar} className="w-full h-full object-cover"/></div>
-                        <div onClick={() => setIsLiked(!isLiked)} className="flex flex-col items-center gap-1"><Icons.Heart size={32} filled={isLiked} className="text-white transition-all active:scale-125" /><span className="text-[10px] text-white shadow-black drop-shadow-md">{isLiked ? '1' : '0'}</span></div>
-                        <div onClick={() => setRotation(r => (r + 90) % 360)} className="flex flex-col items-center gap-1"><Icons.Rotate size={28} className="text-white" /><span className="text-[10px] text-white shadow-black drop-shadow-md">旋转</span></div>
-                        <div onClick={() => setFit(f => f === 'contain' ? 'cover' : 'contain')} className="flex flex-col items-center gap-1"><Icons.Maximize size={28} className="text-white" /><span className="text-[10px] text-white shadow-black drop-shadow-md">缩放</span></div>
-                        <div onClick={toggleMute} className="flex flex-col items-center gap-1">{isMuted ? <Icons.VolumeX size={28} className="text-white"/> : <Icons.Volume size={28} className="text-white"/>}<span className="text-[10px] text-white shadow-black drop-shadow-md">{isMuted ? '静音' : '音量'}</span></div>
+                    {/* --- 右侧边栏 (精简版：仅保留功能键，大幅上移) --- */}
+                    {/* 使用 bottom: 40% 确保在任何屏幕中间偏下位置 */}
+                    <div className="absolute right-4 flex flex-col items-center gap-6 z-20" style={{bottom: '40%'}}>
+                        <div onClick={() => setRotation(r => (r + 90) % 360)} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100">
+                            <div className="bg-black/30 p-2 rounded-full backdrop-blur-sm"><Icons.Rotate size={24} className="text-white" /></div>
+                            <span className="text-[10px] text-white shadow-black drop-shadow-md">旋转</span>
+                        </div>
+                        <div onClick={() => setFit(f => f === 'contain' ? 'cover' : 'contain')} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100">
+                            <div className="bg-black/30 p-2 rounded-full backdrop-blur-sm"><Icons.Maximize size={24} className="text-white" /></div>
+                            <span className="text-[10px] text-white shadow-black drop-shadow-md">缩放</span>
+                        </div>
+                        <div onClick={toggleMute} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100">
+                            <div className="bg-black/30 p-2 rounded-full backdrop-blur-sm">{isMuted ? <Icons.VolumeX size={24} className="text-white"/> : <Icons.Volume size={24} className="text-white"/>}</div>
+                            <span className="text-[10px] text-white shadow-black drop-shadow-md">{isMuted ? '静音' : '音量'}</span>
+                        </div>
                     </div>
 
-                    {/* 3. 底部信息：从 bottom-16 抬高到 bottom-28 (约112px) */}
-                    <div className="absolute left-4 right-16 z-20 text-white pointer-events-none"
-                         style={{bottom: 'calc(7rem + env(safe-area-inset-bottom))'}}>
+                    {/* --- 底部信息 (也相应上移，留出底部手势空间) --- */}
+                    <div className="absolute bottom-16 left-4 right-4 z-20 text-white pointer-events-none">
                         <div className="font-bold text-lg drop-shadow-md">{video.username}</div>
-                        <div className="text-sm opacity-90 drop-shadow-md line-clamp-2">{video.description}</div>
+                        <div className="text-sm opacity-90 drop-shadow-md line-clamp-2 mt-1">{video.description}</div>
                     </div>
                 </div>
             );
@@ -378,10 +408,13 @@
             return (
                 <div className="flex justify-center bg-gray-900 h-screen w-full font-sans text-white">
                     <div className="relative w-full h-full bg-black overflow-hidden max-w-md mx-auto shadow-2xl">
-                        <div className="absolute top-0 w-full p-4 pt-12 flex justify-between items-center z-30 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
-                            <Icons.Search className="text-white/80 pointer-events-auto" />
-                            <div className="flex gap-4 font-bold text-lg"><span className="opacity-60">关注</span><span className="border-b-2 border-white pb-1">推荐</span></div>
-                            <button onClick={() => setShowModal(true)} className="pointer-events-auto"><Icons.Plus className="text-white" size={30} /></button>
+                        <div className="absolute top-0 w-full p-4 pt-4 flex justify-between items-center z-30 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
+                            <Icons.Search className="text-white/80 pointer-events-auto opacity-0" /> {/* 占位保持布局，隐藏搜索 */}
+                            <div className="flex gap-4 font-bold text-lg pointer-events-auto" style={{paddingTop: 'env(safe-area-inset-top)'}}>
+                                <span className="opacity-60">关注</span>
+                                <span className="border-b-2 border-white pb-1">推荐</span>
+                            </div>
+                            <button onClick={() => setShowModal(true)} className="pointer-events-auto" style={{paddingTop: 'env(safe-area-inset-top)'}}><Icons.Plus className="text-white" size={30} /></button>
                         </div>
 
                         <div ref={containerRef} className="w-full h-full overflow-y-scroll snap-y snap-mandatory scroll-smooth no-scrollbar ios-scroll">
