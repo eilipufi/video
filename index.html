@@ -36,7 +36,6 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* 关键：允许垂直滚动，交给浏览器处理 snap */
         .ios-scroll {
             -webkit-overflow-scrolling: touch;
             touch-action: pan-y;
@@ -55,15 +54,34 @@
         .animate-pulse-fast {
             animation: pulse-fast 0.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
+        
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 12px;
+            width: 12px;
+            border-radius: 50%;
+            background: white;
+            margin-top: -4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.3);
+            border-radius: 2px;
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
-        
-        // --- 修正：使用绝对路径，确保在任何地方都能加载 ---
+        const { useState, useEffect, useRef, useCallback } = React;
         const HARDCODED_SOURCE_URL = "https://github.com/eilipufi/video/blob/main/vlist.txt";
 
         const Icon = ({ path, size = 28, className = "", onClick, style }) => (
@@ -121,11 +139,11 @@
             const [currentTime, setCurrentTime] = useState(0);
             const [duration, setDuration] = useState(0);
             
-            // 手势状态
             const touchStartRef = useRef({ x: 0, y: 0, time: 0, startCurrentTime: 0 });
             const [isSeeking, setIsSeeking] = useState(false);
             const [seekTime, setSeekTime] = useState(0);
 
+            // --- 核心修复：加载与自动播放逻辑 ---
             useEffect(() => {
                 if (videoRef.current) {
                     videoRef.current.setAttribute('playsinline', 'true');
@@ -136,37 +154,52 @@
 
                 if (!videoRef.current || !video.url) return;
                 const src = video.url;
+                
+                // 辅助函数：安全播放
+                const safePlay = () => {
+                    if (isActive && videoRef.current) {
+                        videoRef.current.play().catch(() => {});
+                    }
+                };
+
                 if (Hls.isSupported() && src.includes('.m3u8')) {
                     if (hlsRef.current) hlsRef.current.destroy();
                     const hls = new Hls();
                     hls.loadSource(src);
                     hls.attachMedia(videoRef.current);
-                    hls.on(Hls.Events.MANIFEST_PARSED, () => { if (isActive) videoRef.current.play().catch(e => {}); });
+                    hls.on(Hls.Events.MANIFEST_PARSED, () => { 
+                        if (isActive) safePlay();
+                    });
                     hlsRef.current = hls;
                 } else {
+                    // Native HLS (iOS)
                     videoRef.current.src = src;
+                    videoRef.current.load(); // 显式调用 load
+                    // 监听元数据加载，确保加载完立即播放
+                    videoRef.current.addEventListener('loadedmetadata', safePlay, { once: true });
                 }
+                
                 setRotation(0);
                 setFit('contain');
             }, [video.url]);
 
+            // --- 切换激活状态时重置 ---
             useEffect(() => {
                 if (isActive && video.url) {
                     if (videoRef.current) {
-                        videoRef.current.currentTime = 0; // 强制重头播放
-                        videoRef.current.play().catch(e => {});
+                        // 尝试播放，如果失败可能是因为数据还没加载，上面的 loadedmetadata 会补救
+                        videoRef.current.play().catch(() => {});
                     }
                 } else { 
                     if (videoRef.current) {
                         videoRef.current.pause(); 
-                        videoRef.current.currentTime = 0; 
+                        try { videoRef.current.currentTime = 0; } catch(e){} // 只有安全时才重置
                     }
                     setIsPlaying(false);
                     setCurrentTime(0);
                 }
             }, [isActive]);
 
-            // --- 手势处理 ---
             const handleTouchStart = (e) => {
                 const touch = e.touches[0];
                 touchStartRef.current = { 
@@ -182,12 +215,8 @@
                 const deltaX = touch.clientX - touchStartRef.current.x;
                 const deltaY = touch.clientY - touchStartRef.current.y;
 
-                // 只有水平移动显著大于垂直移动时，才触发 Seeking
-                // 这样垂直滑动（切视频）时不会误触进度条
                 if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 20) {
                     if (!isSeeking) setIsSeeking(true);
-                    
-                    // 灵敏度：每 5px 对应 1秒
                     const seekDelta = deltaX / 5; 
                     const newTime = Math.max(0, Math.min(duration, touchStartRef.current.startCurrentTime + seekDelta));
                     setSeekTime(newTime);
@@ -222,7 +251,6 @@
                             onTimeUpdate={(e) => { if (!isSeeking) { setCurrentTime(e.target.currentTime); setDuration(e.target.duration || 0); } }}
                             onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)}
                         />
-                        {/* 交互遮罩层 */}
                         <div className="absolute inset-0 z-10" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onTouchMove={handleTouchMove} onTouchCancel={handleTouchEnd}></div>
                         
                         {isSeeking && (
@@ -242,7 +270,7 @@
 
                     {!isPlaying && !isMuted && !isSeeking && video.url && <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20"><Icons.Play size={60} className="text-white/40" /></div>}
 
-                    {/* --- 顶部进度条 (位于屏幕最上方, z-50) --- */}
+                    {/* 顶部进度条 */}
                     <div className="absolute top-0 left-0 right-0 z-50 px-4 pt-14 pb-6 bg-gradient-to-b from-black/90 to-transparent flex gap-3 items-center pointer-events-none">
                         <span className="text-[10px] text-white font-mono drop-shadow-md min-w-[30px] text-right">{formatTime(displayTime)}</span>
                         <div className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden relative">
@@ -251,23 +279,13 @@
                         <span className="text-[10px] text-white font-mono drop-shadow-md min-w-[30px]">{formatTime(duration)}</span>
                     </div>
 
-                    {/* --- 右侧功能区 (大幅上移，去掉了头像/点赞) --- */}
+                    {/* 右侧边栏 */}
                     <div className="absolute right-4 flex flex-col items-center gap-6 z-20" style={{bottom: '35%'}}>
-                        <div onClick={() => setRotation(r => (r + 90) % 360)} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100">
-                            <div className="bg-black/30 p-2 rounded-full backdrop-blur-sm border border-white/10"><Icons.Rotate size={24} className="text-white" /></div>
-                            <span className="text-[10px] text-white shadow-black drop-shadow-md">旋转</span>
-                        </div>
-                        <div onClick={() => setFit(f => f === 'contain' ? 'cover' : 'contain')} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100">
-                            <div className="bg-black/30 p-2 rounded-full backdrop-blur-sm border border-white/10"><Icons.Maximize size={24} className="text-white" /></div>
-                            <span className="text-[10px] text-white shadow-black drop-shadow-md">缩放</span>
-                        </div>
-                        <div onClick={toggleMute} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100">
-                            <div className="bg-black/30 p-2 rounded-full backdrop-blur-sm border border-white/10">{isMuted ? <Icons.VolumeX size={24} className="text-white"/> : <Icons.Volume size={24} className="text-white"/>}</div>
-                            <span className="text-[10px] text-white shadow-black drop-shadow-md">{isMuted ? '静音' : '音量'}</span>
-                        </div>
+                        <div onClick={() => setRotation(r => (r + 90) % 360)} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100"><div className="bg-black/30 p-2 rounded-full backdrop-blur-sm border border-white/10"><Icons.Rotate size={24} className="text-white" /></div><span className="text-[10px] text-white shadow-black drop-shadow-md">旋转</span></div>
+                        <div onClick={() => setFit(f => f === 'contain' ? 'cover' : 'contain')} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100"><div className="bg-black/30 p-2 rounded-full backdrop-blur-sm border border-white/10"><Icons.Maximize size={24} className="text-white" /></div><span className="text-[10px] text-white shadow-black drop-shadow-md">缩放</span></div>
+                        <div onClick={toggleMute} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100"><div className="bg-black/30 p-2 rounded-full backdrop-blur-sm border border-white/10">{isMuted ? <Icons.VolumeX size={24} className="text-white"/> : <Icons.Volume size={24} className="text-white"/>}</div><span className="text-[10px] text-white shadow-black drop-shadow-md">{isMuted ? '静音' : '音量'}</span></div>
                     </div>
 
-                    {/* --- 底部信息 (现在非常干净，只显示文字) --- */}
                     <div className="absolute bottom-12 left-4 right-4 z-20 text-white pointer-events-none">
                         <div className="font-bold text-lg drop-shadow-md">{video.username}</div>
                         <div className="text-sm opacity-90 drop-shadow-md line-clamp-2 mt-1 leading-relaxed">{video.description}</div>
@@ -299,7 +317,7 @@
                         url: item.url,
                         username: item.name,
                         description: `推荐视频 #${randomIndex + 1}`,
-                        avatar: "" // 移除了头像逻辑
+                        avatar: "" 
                     });
                 }
                 return newItems;
@@ -308,7 +326,6 @@
             useEffect(() => {
                 const autoFetch = async () => {
                     try {
-                        // 使用硬编码的 URL 并自动走代理
                         let url = HARDCODED_SOURCE_URL;
                         let fetchUrl = url;
                         if (url.startsWith('http')) {
@@ -317,15 +334,12 @@
                             }
                             fetchUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
                         }
-                        
                         console.log("Loading list...");
                         const res = await fetch(fetchUrl);
                         if (!res.ok) throw new Error("加载列表失败");
                         const text = await res.text();
                         const items = parsePlaylist(text);
-                        
                         allSourcesRef.current = items;
-                        
                         if (items.length > 0) {
                             const initialBatch = getRandomVideos(3);
                             setVideos(initialBatch);
@@ -345,7 +359,6 @@
                         if (e.isIntersecting) {
                             const id = Number(e.target.getAttribute('data-id'));
                             setActiveId(id);
-                            
                             const currentIndex = videos.findIndex(v => v.id === id);
                             if (currentIndex >= videos.length - 2) {
                                 const nextBatch = getRandomVideos(2);
