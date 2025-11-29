@@ -53,134 +53,47 @@
         .animate-pulse-fast {
             animation: pulse-fast 0.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
-        
-        input[type=range] {
-            -webkit-appearance: none;
-            background: transparent;
-        }
-        input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            height: 12px;
-            width: 12px;
-            border-radius: 50%;
-            background: white;
-            margin-top: -4px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.5);
-        }
-        input[type=range]::-webkit-slider-runnable-track {
-            width: 100%;
-            height: 4px;
-            cursor: pointer;
-            background: rgba(255,255,255,0.3);
-            border-radius: 2px;
-        }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef, useCallback } = React;
+        const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
         // ==========================================
-        //  在这里粘贴你的所有 M3U8 链接！(8000条也没问题)
-        //  格式：逗号分隔的字符串，或者直接每行一个 URL
+        //  硬编码数据源 (已替换为你提供的20条)
         // ==========================================
         const ALL_SOURCES = [
-            "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", 
-            "https://assets.mixkit.co/videos/preview/mixkit-girl-in-neon-sign-1232-large.mp4",
-            "https://assets.mixkit.co/videos/preview/mixkit-tree-with-yellow-flowers-1173-large.mp4",
-            "https://assets.mixkit.co/videos/preview/mixkit-mother-with-her-little-daughter-eating-a-marshmallow-in-nature-39764-large.mp4",
-            "https://assets.mixkit.co/videos/preview/mixkit-waves-in-the-water-1164-large.mp4",
-            "https://t33.cdn2020.com/video/m3u8/2025/11/22/3f788224/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/10/af952a1d/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/26/da27448a/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/f6364aea/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/24/60e3cfd8/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/24/1077d362/index.m3u8",
-"https://t0.97img.com/a1002192/a.m3u8",
-"https://t0.97img.com/a1002096/a.m3u8",
-"https://t0.97img.com/a1002138/a.m3u8",
-"https://t0.97img.com/a1002139/a.m3u8",
-"https://t0.97img.com/a1002148/a.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/1b79b925/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/48d389da/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/b91334b0/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/5cd8f22d/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/81b97d4c/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/d2426cfd/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/1d388223/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/85f7d5ec/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/e5248e00/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/a4165994/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/77e81059/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/468484bc/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/3bafe57f/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/c555f951/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/3e5287f6/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/74fc4c0f/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/316c8aa4/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/6a63fb3d/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/8ddcaa9b/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/25/3745adbc/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/25/6255ff34/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/25/21a9bb50/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/21/dd9e5e77/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/17/b7acc122/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/14/545178dd/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/07/ff16a832/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/04/c9ede141/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/10/31/3e6186a7/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/10/28/532077b1/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/10/26/aaea2fdc/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/10/26/8e18dea3/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/10/24/1bf58566/index.m3u8",
-"https://t0.97img.com/a1002060/a.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/10/22/0b00266e/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/10/18/64827eee/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/e99de66a/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/537ec2e9/index.m3u8",
-"https://t0.97img.com/a1002100/a.m3u8",
-"https://t0.97img.com/a1002086/a.m3u8",
-"https://t0.97img.com/a1002106/a.m3u8",
-"https://t0.97img.com/a1002128/a.m3u8",
-"https://t0.97img.com/a1002147/a.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/25/42ed3635/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/24/339bb99e/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/24/6862500e/index.m3u8",
-"https://t0.97img.com/a1001962/a.m3u8",
-"https://t0.97img.com/a1002039/a.m3u8",
-"https://t0.97img.com/a1002105/a.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/c4e37297/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/8263d3ac/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/4b99384a/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/e053ecfe/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/9b8b6cf2/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/bb37fa8b/index.m3u8",
-"https://t33.cdn2020.com/video/m3u8/2025/11/27/07b7c545/index.m3u8",
-"https://t30.cdn2020.com/video/m3u8/2025/06/03/f0ffdd1c/index.m3u8",
-"https://t30.cdn2020.com/video/m3u8/2025/04/16/aee8fd21/index.m3u8",
-"https://t30.cdn2020.com/video/m3u8/2025/04/13/edff633a/index.m3u8",
-"https://t30.cdn2020.com/video/m3u8/2025/04/09/5629cfb0/index.m3u8",
-"https://t30.cdn2020.com/video/m3u8/2025/04/06/5d0f9fce/index.m3u8",
-"https://t30.cdn2020.com/video/m3u8/2025/04/02/fe203cb9/index.m3u8",
-"https://t30.cdn2020.com/video/m3u8/2025/03/30/ccb47598/index.m3u8",
-"https://t30.cdn2020.com/video/m3u8/2025/03/26/639abd60/index.m3u8",
-"https://t30.cdn2020.com/video/m3u8/2025/03/22/45d044c7/index.m3u8",
-"https://t30.cdn2020.com/video/m3u8/2025/03/19/808faec1/index.m3u8",
-"https://t30.cdn2020.com/video/m3u8/2025/03/16/6c3f4237/index.m3u8",
-"https://t30.cdn2020.com/video/m3u8/2025/03/12/19ef1caa/index.m3u8",
-"https://t30.cdn2020.com/video/m3u8/2025/03/09/698590a3/index.m3u8",
-"https://t30.cdn2020.com/video/m3u8/2025,
-            
-            // --- 在下面粘贴你的 8000 个链接 (示例) ---
-            // "http://example.com/video1.m3u8",
-            // "http://example.com/video2.m3u8",
-            // ...
+            "https://t27.cdn2020.com/video/m3u8/2022/11/19/a367abe8/index.m3u8",
+            "https://t27.cdn2020.com/video/m3u8/2022/11/17/5e8d4660/index.m3u8",
+            "https://t27.cdn2020.com/video/m3u8/2022/11/17/b4dce4e5/index.m3u8",
+            "https://t27.cdn2020.com/video/m3u8/2022/11/17/ddab062a/index.m3u8",
+            "https://t27.cdn2020.com/video/m3u8/2022/11/17/7c4f4d2d/index.m3u8",
+            "https://t27.cdn2020.com/video/m3u8/2022/11/17/3b15ec39/index.m3u8",
+            "https://t27.cdn2020.com/video/m3u8/2022/11/17/f93873e3/index.m3u8",
+            "https://t27.cdn2020.com/video/m3u8/2022/11/11/b10e775c/index.m3u8",
+            "https://t27.cdn2020.com/video/m3u8/2022/11/11/8175099f/index.m3u8",
+            "https://t27.cdn2020.com/video/m3u8/2022/11/11/f7ae0496/index.m3u8",
+            "https://t27.cdn2020.com/video/m3u8/2022/11/11/a23a1cda/index.m3u8",
+            "https://t27.cdn2020.com/video/m3u8/2022/11/15/498f2974/index.m3u8",
+            "https://t27.cdn2020.com/video/m3u8/2022/11/15/41981bb3/index.m3u8",
+            "https://t27.cdn2020.com/video/m3u8/2022/11/15/59944cac/index.m3u8",
+            "https://t27.cdn2020.com/video/m3u8/2022/11/15/7f10a096/index.m3u8",
+            "https://t27.cdn2020.com/video/m3u8/2022/11/15/5e83ed8e/index.m3u8",
+            "https://t27.cdn2020.com/video/m3u8/2022/11/15/8bafbcae/index.m3u8",
+            "https://t27.cdn2020.com/video/m3u8/2022/11/15/4ed7a7c1/index.m3u8",
+            "https://t27.cdn2020.com/video/m3u8/2022/11/15/5393ce0b/index.m3u8",
+            "https://t27.cdn2020.com/video/m3u8/2022/11/15/6cfa00d3/index.m3u8"
         ];
 
-        // 每次加载的视频数量 (分组大小)
-        const BATCH_SIZE = 4;
+        // 虚拟化配置：解决大量数据卡顿问题
+        // 只渲染当前视频的前后 1 个 (总共保持 3 个活跃 DOM)
+        const RENDER_WINDOW = 1; 
+        // 初始加载数量
+        const INITIAL_LOAD_COUNT = 5;
+        // 每次追加数量
+        const BATCH_SIZE = 5;
 
         const Icon = ({ path, size = 28, className = "", onClick, style }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} onClick={onClick} style={{filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.5))', ...style}}>{path}</svg>
@@ -203,8 +116,16 @@
             return `${m}:${s < 10 ? '0' : ''}${s}`;
         };
 
-        // 单个视频组件
-        const VideoSlide = ({ video, isActive, isMuted, toggleMute }) => {
+        const VideoSlide = ({ video, isActive, isVisible, isMuted, toggleMute }) => {
+            // 虚拟化核心：不可见的视频只渲染占位符，内存占用极低
+            if (!isVisible) {
+                return (
+                    <div className="relative w-full h-full snap-start bg-black flex-shrink-0 border-b border-gray-800 flex items-center justify-center">
+                        <div className="text-gray-800 text-xs">Waiting...</div>
+                    </div>
+                );
+            }
+
             const videoRef = useRef(null);
             const hlsRef = useRef(null);
             const [isPlaying, setIsPlaying] = useState(false);
@@ -228,7 +149,6 @@
                 if (!videoRef.current || !video.url) return;
                 const src = video.url;
                 
-                // 安全播放函数
                 const safePlay = () => {
                     if (isActive && videoRef.current) {
                         videoRef.current.play().catch(() => {});
@@ -237,7 +157,7 @@
 
                 if (Hls.isSupported() && src.includes('.m3u8')) {
                     if (hlsRef.current) hlsRef.current.destroy();
-                    const hls = new Hls();
+                    const hls = new Hls({ maxBufferLength: 30, maxMaxBufferLength: 60 });
                     hls.loadSource(src);
                     hls.attachMedia(videoRef.current);
                     hls.on(Hls.Events.MANIFEST_PARSED, () => { if (isActive) safePlay(); });
@@ -250,26 +170,27 @@
                 
                 setRotation(0);
                 setFit('contain');
+
+                return () => { if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; } }
             }, [video.url]);
 
             // 切换视频时重置
             useEffect(() => {
                 if (isActive && video.url) {
                     if (videoRef.current) {
-                        videoRef.current.currentTime = 0;
-                        videoRef.current.play().catch(() => {});
+                        videoRef.current.currentTime = 0; 
+                        videoRef.current.play().catch(e => {});
                     }
                 } else { 
                     if (videoRef.current) {
                         videoRef.current.pause(); 
-                        try { videoRef.current.currentTime = 0; } catch(e){}
+                        videoRef.current.currentTime = 0; 
                     }
                     setIsPlaying(false);
                     setCurrentTime(0);
                 }
             }, [isActive]);
 
-            // 手势逻辑
             const handleTouchStart = (e) => {
                 const touch = e.touches[0];
                 touchStartRef.current = { 
@@ -336,22 +257,21 @@
                     {!isPlaying && !isMuted && !isSeeking && video.url && <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20"><Icons.Play size={60} className="text-white/40" /></div>}
 
                     {/* 顶部进度条 */}
-                    <div className="absolute top-0 left-0 right-0 z-50 px-4 pt-14 pb-6 bg-gradient-to-b from-black/90 to-transparent flex gap-3 items-center pointer-events-none">
+                    <div className="absolute top-0 left-0 right-0 z-50 px-4 pt-16 pb-4 bg-gradient-to-b from-black/80 to-transparent flex gap-3 items-center pointer-events-none">
                         <span className="text-[10px] text-white font-mono drop-shadow-md min-w-[30px] text-right">{formatTime(displayTime)}</span>
-                        <div className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden relative">
-                            <div className="absolute top-0 left-0 h-full bg-white transition-all duration-100 box-shadow-lg" style={{width: `${(displayTime / (duration || 1)) * 100}%`}}></div>
-                        </div>
+                        <div className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden relative"><div className="absolute top-0 left-0 h-full bg-white transition-all duration-100 box-shadow-lg" style={{width: `${(displayTime / (duration || 1)) * 100}%`}}></div></div>
                         <span className="text-[10px] text-white font-mono drop-shadow-md min-w-[30px]">{formatTime(duration)}</span>
                     </div>
 
                     {/* 右侧边栏 */}
-                    <div className="absolute right-4 flex flex-col items-center gap-6 z-20" style={{bottom: '35%'}}>
+                    <div className="absolute right-4 flex flex-col items-center gap-6 z-20" style={{bottom: '40%'}}>
                         <div onClick={() => setRotation(r => (r + 90) % 360)} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100"><div className="bg-black/30 p-2 rounded-full backdrop-blur-sm border border-white/10"><Icons.Rotate size={24} className="text-white" /></div><span className="text-[10px] text-white shadow-black drop-shadow-md">旋转</span></div>
                         <div onClick={() => setFit(f => f === 'contain' ? 'cover' : 'contain')} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100"><div className="bg-black/30 p-2 rounded-full backdrop-blur-sm border border-white/10"><Icons.Maximize size={24} className="text-white" /></div><span className="text-[10px] text-white shadow-black drop-shadow-md">缩放</span></div>
                         <div onClick={toggleMute} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100"><div className="bg-black/30 p-2 rounded-full backdrop-blur-sm border border-white/10">{isMuted ? <Icons.VolumeX size={24} className="text-white"/> : <Icons.Volume size={24} className="text-white"/>}</div><span className="text-[10px] text-white shadow-black drop-shadow-md">{isMuted ? '静音' : '音量'}</span></div>
                     </div>
 
-                    <div className="absolute bottom-12 left-4 right-4 z-20 text-white pointer-events-none">
+                    {/* 底部信息 */}
+                    <div className="absolute bottom-16 left-4 right-4 z-20 text-white pointer-events-none">
                         <div className="font-bold text-lg drop-shadow-md">{video.username}</div>
                         <div className="text-sm opacity-90 drop-shadow-md line-clamp-2 mt-1 leading-relaxed">{video.description}</div>
                     </div>
@@ -361,42 +281,46 @@
 
         const App = () => {
             const [videos, setVideos] = useState([]);
-            const [activeId, setActiveId] = useState(0);
+            const [activeIndex, setActiveIndex] = useState(0); 
             const [isMuted, setIsMuted] = useState(true);
-            const [sourceIndex, setSourceIndex] = useState(0); // 记录当前加载到了大列表的哪个位置
+            const [sourceIndex, setSourceIndex] = useState(0); 
             const containerRef = useRef(null);
 
-            // 1. 初始化：加载第一组
+            // 1. 初始化：加载第一批视频
             useEffect(() => {
                 const loadInitial = () => {
-                    const firstBatch = ALL_SOURCES.slice(0, BATCH_SIZE).map((url, i) => ({
+                    const firstBatchRaw = ALL_SOURCES.slice(0, INITIAL_LOAD_COUNT);
+                    if (firstBatchRaw.length === 0) return;
+
+                    const firstBatch = firstBatchRaw.map((url, i) => ({
                         id: Date.now() + i,
                         url: url.trim(),
                         username: `频道 #${i + 1}`,
-                        description: "自动播放中..."
+                        description: "自动连播中..."
                     }));
                     
-                    if (firstBatch.length > 0) {
-                        setVideos(firstBatch);
-                        setActiveId(firstBatch[0].id);
-                        setSourceIndex(BATCH_SIZE);
-                    }
+                    setVideos(firstBatch);
+                    setActiveIndex(0);
+                    setSourceIndex(INITIAL_LOAD_COUNT);
                 };
                 loadInitial();
             }, []);
 
-            // 2. 滚动监听 + 懒加载
+            // 2. 滚动监听 + 无限加载
             useEffect(() => {
                 const observer = new IntersectionObserver((entries) => {
                     entries.forEach(e => {
                         if (e.isIntersecting) {
                             const id = Number(e.target.getAttribute('data-id'));
-                            setActiveId(id);
+                            const index = videos.findIndex(v => v.id === id);
                             
-                            // 检查是否滑到了倒数第 2 个
-                            const currentIndex = videos.findIndex(v => v.id === id);
-                            if (currentIndex >= videos.length - 2) {
-                                loadMore();
+                            if (index !== -1) {
+                                setActiveIndex(index); // 更新当前索引，触发虚拟化渲染
+                                
+                                // 如果滑到了倒数第 2 个，加载下一批
+                                if (index >= videos.length - 2) {
+                                    loadMore();
+                                }
                             }
                         }
                     });
@@ -406,7 +330,6 @@
                 return () => observer.disconnect();
             }, [videos]);
 
-            // 加载下一组
             const loadMore = () => {
                 if (sourceIndex >= ALL_SOURCES.length) return; // 到底了
 
@@ -422,20 +345,31 @@
 
                 setVideos(prev => [...prev, ...nextBatch]);
                 setSourceIndex(prev => prev + nextBatch.length);
-                console.log(`Loaded ${nextBatch.length} new videos. Total: ${videos.length + nextBatch.length}`);
             };
 
             return (
                 <div className="flex justify-center bg-gray-900 h-screen w-full font-sans text-white">
                     <div className="relative w-full h-full bg-black overflow-hidden max-w-md mx-auto shadow-2xl">
-                        {/* 视频容器 */}
                         <div ref={containerRef} className="w-full h-full overflow-y-scroll snap-y snap-mandatory scroll-smooth no-scrollbar ios-scroll">
-                            {videos.map(v => (
-                                <div key={v.id} data-id={v.id} className="video-slide w-full h-full snap-start relative">
-                                    <VideoSlide video={v} isActive={activeId === v.id} isMuted={isMuted} toggleMute={() => setIsMuted(!isMuted)} />
-                                </div>
-                            ))}
-                            {videos.length === 0 && <div className="flex items-center justify-center h-full">Loading sources...</div>}
+                            {videos.map((v, index) => {
+                                // --- 核心虚拟化逻辑 ---
+                                // 只有当前视频和前后各1个视频(共3个)会被渲染成真正的播放器
+                                // 其他视频变成轻量级占位符，防止内存溢出
+                                const isVisible = Math.abs(index - activeIndex) <= RENDER_WINDOW;
+                                
+                                return (
+                                    <div key={v.id} data-id={v.id} className="video-slide w-full h-full snap-start relative">
+                                        <VideoSlide 
+                                            video={v} 
+                                            isActive={index === activeIndex} 
+                                            isVisible={isVisible}
+                                            isMuted={isMuted} 
+                                            toggleMute={() => setIsMuted(!isMuted)} 
+                                        />
+                                    </div>
+                                );
+                            })}
+                            {videos.length === 0 && <div className="flex items-center justify-center h-full">载入视频中...</div>}
                         </div>
                     </div>
                 </div>
