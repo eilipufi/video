@@ -53,6 +53,28 @@
         .animate-pulse-fast {
             animation: pulse-fast 0.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
+        
+        /* 进度条样式优化 */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 12px;
+            width: 12px;
+            border-radius: 50%;
+            background: white;
+            margin-top: -4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.3);
+            border-radius: 2px;
+        }
     </style>
 </head>
 <body>
@@ -87,12 +109,9 @@
             "https://t27.cdn2020.com/video/m3u8/2022/11/15/6cfa00d3/index.m3u8"
         ];
 
-        // 虚拟化配置：解决大量数据卡顿问题
-        // 只渲染当前视频的前后 1 个 (总共保持 3 个活跃 DOM)
+        // 虚拟化配置
         const RENDER_WINDOW = 1; 
-        // 初始加载数量
         const INITIAL_LOAD_COUNT = 5;
-        // 每次追加数量
         const BATCH_SIZE = 5;
 
         const Icon = ({ path, size = 28, className = "", onClick, style }) => (
@@ -117,7 +136,6 @@
         };
 
         const VideoSlide = ({ video, isActive, isVisible, isMuted, toggleMute }) => {
-            // 虚拟化核心：不可见的视频只渲染占位符，内存占用极低
             if (!isVisible) {
                 return (
                     <div className="relative w-full h-full snap-start bg-black flex-shrink-0 border-b border-gray-800 flex items-center justify-center">
@@ -137,6 +155,7 @@
             const touchStartRef = useRef({ x: 0, y: 0, time: 0, startCurrentTime: 0 });
             const [isSeeking, setIsSeeking] = useState(false);
             const [seekTime, setSeekTime] = useState(0);
+            const [isSliderDragging, setIsSliderDragging] = useState(false); // 新增状态：防止拖拽时进度条跳动
 
             useEffect(() => {
                 if (videoRef.current) {
@@ -228,6 +247,8 @@
             };
 
             const videoStyle = { width: '100%', height: '100%', objectFit: fit, transform: `rotate(${rotation}deg)`, transition: 'transform 0.3s ease', pointerEvents: 'none' };
+            
+            // 显示时间：手势拖动时 > 拖动滑块时 > 正常播放时
             const displayTime = isSeeking ? seekTime : currentTime;
 
             return (
@@ -237,7 +258,13 @@
                             ref={videoRef} style={videoStyle}
                             loop muted={isMuted}
                             playsInline={true} webkit-playsinline="true" x5-playsinline="true" x5-video-player-type="h5-page"
-                            onTimeUpdate={(e) => { if (!isSeeking) { setCurrentTime(e.target.currentTime); setDuration(e.target.duration || 0); } }}
+                            onTimeUpdate={(e) => { 
+                                // 只有在既没有屏幕滑动，也没有拖动滑块时，才更新进度
+                                if (!isSeeking && !isSliderDragging) { 
+                                    setCurrentTime(e.target.currentTime); 
+                                    setDuration(e.target.duration || 0); 
+                                } 
+                            }}
                             onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)}
                         />
                         <div className="absolute inset-0 z-10" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onTouchMove={handleTouchMove} onTouchCancel={handleTouchEnd}></div>
@@ -256,10 +283,29 @@
 
                     {!isPlaying && !isMuted && !isSeeking && video.url && <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20"><Icons.Play size={60} className="text-white/40" /></div>}
 
-                    {/* 顶部进度条 */}
-                    <div className="absolute top-0 left-0 right-0 z-50 px-4 pt-16 pb-4 bg-gradient-to-b from-black/80 to-transparent flex gap-3 items-center pointer-events-none">
+                    {/* 顶部进度条 - 可拖动 */}
+                    <div className="absolute top-0 left-0 right-0 z-50 px-4 pt-16 pb-4 bg-gradient-to-b from-black/80 to-transparent flex gap-3 items-center pointer-events-auto">
                         <span className="text-[10px] text-white font-mono drop-shadow-md min-w-[30px] text-right">{formatTime(displayTime)}</span>
-                        <div className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden relative"><div className="absolute top-0 left-0 h-full bg-white transition-all duration-100 box-shadow-lg" style={{width: `${(displayTime / (duration || 1)) * 100}%`}}></div></div>
+                        <input 
+                            type="range" 
+                            min="0" 
+                            max={duration || 100} 
+                            step="0.1"
+                            value={displayTime} 
+                            onChange={(e) => {
+                                const val = parseFloat(e.target.value);
+                                setCurrentTime(val); // 立即更新UI显示
+                                if (videoRef.current) videoRef.current.currentTime = val; // 跳转视频
+                            }}
+                            // 拖动开始：阻止冒泡防止切换视频，设置状态防止进度条抖动
+                            onTouchStart={(e) => { e.stopPropagation(); setIsSliderDragging(true); }}
+                            onTouchMove={(e) => e.stopPropagation()}
+                            onTouchEnd={(e) => { e.stopPropagation(); setIsSliderDragging(false); }}
+                            onMouseDown={(e) => { e.stopPropagation(); setIsSliderDragging(true); }}
+                            onMouseUp={(e) => { e.stopPropagation(); setIsSliderDragging(false); }}
+                            className="flex-1 h-1 bg-white/30 rounded-lg appearance-none outline-none cursor-pointer" 
+                            style={{accentColor: 'white'}} 
+                        />
                         <span className="text-[10px] text-white font-mono drop-shadow-md min-w-[30px]">{formatTime(duration)}</span>
                     </div>
 
@@ -286,7 +332,6 @@
             const [sourceIndex, setSourceIndex] = useState(0); 
             const containerRef = useRef(null);
 
-            // 1. 初始化：加载第一批视频
             useEffect(() => {
                 const loadInitial = () => {
                     const firstBatchRaw = ALL_SOURCES.slice(0, INITIAL_LOAD_COUNT);
@@ -306,7 +351,6 @@
                 loadInitial();
             }, []);
 
-            // 2. 滚动监听 + 无限加载
             useEffect(() => {
                 const observer = new IntersectionObserver((entries) => {
                     entries.forEach(e => {
@@ -315,9 +359,7 @@
                             const index = videos.findIndex(v => v.id === id);
                             
                             if (index !== -1) {
-                                setActiveIndex(index); // 更新当前索引，触发虚拟化渲染
-                                
-                                // 如果滑到了倒数第 2 个，加载下一批
+                                setActiveIndex(index); 
                                 if (index >= videos.length - 2) {
                                     loadMore();
                                 }
@@ -331,7 +373,7 @@
             }, [videos]);
 
             const loadMore = () => {
-                if (sourceIndex >= ALL_SOURCES.length) return; // 到底了
+                if (sourceIndex >= ALL_SOURCES.length) return;
 
                 const nextBatchRaw = ALL_SOURCES.slice(sourceIndex, sourceIndex + BATCH_SIZE);
                 if (nextBatchRaw.length === 0) return;
@@ -352,11 +394,7 @@
                     <div className="relative w-full h-full bg-black overflow-hidden max-w-md mx-auto shadow-2xl">
                         <div ref={containerRef} className="w-full h-full overflow-y-scroll snap-y snap-mandatory scroll-smooth no-scrollbar ios-scroll">
                             {videos.map((v, index) => {
-                                // --- 核心虚拟化逻辑 ---
-                                // 只有当前视频和前后各1个视频(共3个)会被渲染成真正的播放器
-                                // 其他视频变成轻量级占位符，防止内存溢出
                                 const isVisible = Math.abs(index - activeIndex) <= RENDER_WINDOW;
-                                
                                 return (
                                     <div key={v.id} data-id={v.id} className="video-slide w-full h-full snap-start relative">
                                         <VideoSlide 
